@@ -5,6 +5,7 @@ const logger = require("morgan");
 const helmet = require("helmet");
 const cors = require("cors");
 const morgan = require("morgan");
+
 //Route Files
 const indexRouter = require("./routes/index");
 const leaderboardRouter = require("./routes/leaderboard");
@@ -31,13 +32,11 @@ const config = require("config");
 const session = require("express-session");
 const redis = require("redis");
 
-
-
 const app = express();
 
 app.use(logger("dev"));
-app.use(express.raw({type: 'application/octet-stream', limit: "2gb"}));
-app.use(express.json({limit: "512kb"}));
+app.use(express.raw({ type: "application/octet-stream", limit: "2gb" }));
+app.use(express.json({ limit: "512kb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use("/demo", express.static("public"));
@@ -45,32 +44,26 @@ app.use("/static/img/logos", express.static("public/img/logos"));
 
 // Security defaults with helmet
 app.use(helmet());
-if(config.get("server.useRedis")){
+if (config.get("server.useRedis")) {
   // Messy but avoids any open file handles.
   const redisClient =
-  process.env.NODE_ENV !== "test"
-    ? redis.createClient({
-        password: config.get(process.env.NODE_ENV + ".redisPass"),
-      })
-    : require("redis-mock").createClient();
+    process.env.NODE_ENV !== "test"
+      ? redis.createClient({
+          url: config.get(process.env.NODE_ENV + ".redisUrl"),
+        })
+      : require("redis-mock").createClient();
   const redisStore = require("connect-redis")(session);
   redisClient.on("error", (err) => {
     console.log("Redis error: ", err);
   });
-  
-  const redisCfg = {
-    host: config.get(process.env.NODE_ENV + ".redisHost"),
-    port: config.get(process.env.NODE_ENV + ".redisPort"),
-    client: redisClient,
-    ttl: config.get(process.env.NODE_ENV + ".redisTTL"),
-  };
+
   app.use(
     session({
       secret: config.get("server.sharedSecret"),
       name: "G5API",
       resave: false,
       saveUninitialized: true,
-      store: new redisStore(redisCfg),
+      store: new redisStore({ client: redisClient }),
       cookie: { maxAge: 3600000 },
     })
   );
@@ -195,7 +188,7 @@ app.use(function (err, req, res, next) {
   res.json({ error: err.message });
 });
 
-if(config.get("server.useRedis")){
+if (config.get("server.useRedis")) {
   process.on("exit", function () {
     redisClient.end();
   });
